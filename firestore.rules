@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users collection - users can read/write their own profile
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+
+    // PYQs collection - authenticated users can read, create, and delete their own
+    match /pyqs/{pyqId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && 
+        (resource.data.uploadedBy == request.auth.token.email || 
+         request.auth.token.email.matches('.*@admin\\.university\\.edu$'));
+    }
+
+    // Announcements collection - authenticated users can read, admins can create/delete
+    match /announcements/{announcementId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        (resource.data.author == request.auth.token.email ||
+         request.auth.token.email.matches('.*@admin\\.university\\.edu$'));
+      allow delete: if isAuthenticated() && 
+        (resource.data.author == request.auth.token.email ||
+         request.auth.token.email.matches('.*@admin\\.university\\.edu$'));
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
